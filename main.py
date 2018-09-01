@@ -58,11 +58,27 @@ layer_input_size, layer_hidden_list, layer_output_size = layer_extract_architect
 
 #print(layer_hidden_list)
 
-w_set = train_set[0]
-w_test_set = test_set[0]
+working_set = train_set[0]
+working_test_set = test_set[0]
 
-df_feed, df_desire = seperate_data_to_training_target(w_set,8)
+df_feed, df_desire = seperate_data_to_training_target(working_set,8)
 
 line_in = df_feed.iloc[1]
 
-print(line_in)
+#print(line_in)
+
+def weight_init(layer_input_size, layer_hidden_list, layer_output_size):
+    np.random.seed(seed=2)
+    w_in = np.random.standard_normal(int(layer_input_size)+1)
+    w_out = np.random.standard_normal(int(layer_output_size)+1)
+
+    w_hid_list = []
+    for i in layer_hidden_list:
+        w_hid_temp = np.random.standard_normal(int(i)+1)
+        w_hid_list.append(w_hid_temp)
+
+    return w_in, w_hid_list, w_out
+
+w_in, w_hid_list, w_out = weight_init(layer_input_size, layer_hidden_list, layer_output_size)
+
+print(w_out)
