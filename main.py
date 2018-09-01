@@ -8,6 +8,8 @@ K_F_VALID = 10
 
 df = pd.read_csv(input_filename, delimiter = DELIMITER, header = 0 )
 
+
+
 def k_fold_cross_valiation(df, K_F_VALID):
     df_fold = df.sample(frac = 1, random_state = 2)
     BIN_SIZE = len(df_fold) // K_F_VALID
@@ -46,39 +48,34 @@ def seperate_data_to_training_target(df_set, target_num):
     df_desire = df_temp.iloc[:,target_num:]
     return df_feed, df_desire
 
-layer_outline = "8-5-1"
+layer_outline = "8-5-3-1"
+
 def layer_extract_architect(layer_outline):
     layer_outline_list = layer_outline.split("-")
-    layer_input_size = layer_outline_list[0]
-    layer_hidden_list = layer_outline_list[1:-1]
-    layer_output_size = layer_outline_list[-1]
-    return layer_input_size, layer_hidden_list, layer_output_size
+    return layer_outline_list
 
-layer_input_size, layer_hidden_list, layer_output_size = layer_extract_architect(layer_outline)
+layer_outline_list = layer_extract_architect(layer_outline)
 
-#print(layer_hidden_list)
+def weight_init(layer_outline_list):
+    np.random.seed(seed=2)
+    w_l = []
+    for i,j in zip(layer_outline_list, layer_outline_list[1:]):
+        print(i, j)
+        weight = []
+        for j2 in range(0,int(j)):
+            weight.append(np.random.standard_normal(int(i)+1))
+        w_l.append(weight)
+    return w_l
+
+w = weight_init(layer_outline_list)
+print(w[2])
 
 working_set = train_set[0]
 working_test_set = test_set[0]
 
 df_feed, df_desire = seperate_data_to_training_target(working_set,8)
 
-line_in = df_feed.iloc[1]
+line_in = df_feed.iloc[1].tolist()
+line_in.insert(0,1) #add bias input
 
 #print(line_in)
-
-def weight_init(layer_input_size, layer_hidden_list, layer_output_size):
-    np.random.seed(seed=2)
-    w_in = np.random.standard_normal(int(layer_input_size)+1)
-    w_out = np.random.standard_normal(int(layer_output_size)+1)
-
-    w_hid_list = []
-    for i in layer_hidden_list:
-        w_hid_temp = np.random.standard_normal(int(i)+1)
-        w_hid_list.append(w_hid_temp)
-
-    return w_in, w_hid_list, w_out
-
-w_in, w_hid_list, w_out = weight_init(layer_input_size, layer_hidden_list, layer_output_size)
-
-print(w_out)
