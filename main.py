@@ -1,5 +1,6 @@
 import sys  
 import pandas as pd
+import numpy as np
 
 input_filename = sys.argv[1]
 DELIMITER = '\t'
@@ -35,5 +36,33 @@ def generate_train_test_from_dataset(df, K_F_VALID):
     train_set, test_set = k_fold_combine_to_train_test_set(fold_dataset_list, K_F_VALID)
     return train_set, test_set
 
-#train_set, test_set = generate_train_test_from_dataset(df,K_F_VALID)
+train_set, test_set = generate_train_test_from_dataset(df,K_F_VALID)
 #print(test_set[0:9])
+
+def seperate_data_to_training_target(df_set, target_num):
+    #column start at index 0
+    df_temp = df_set
+    df_feed = df_temp.iloc[:,:target_num]
+    df_desire = df_temp.iloc[:,target_num:]
+    return df_feed, df_desire
+
+layer_outline = "8-5-1"
+def layer_extract_architect(layer_outline):
+    layer_outline_list = layer_outline.split("-")
+    layer_input_size = layer_outline_list[0]
+    layer_hidden_list = layer_outline_list[1:-1]
+    layer_output_size = layer_outline_list[-1]
+    return layer_input_size, layer_hidden_list, layer_output_size
+
+layer_input_size, layer_hidden_list, layer_output_size = layer_extract_architect(layer_outline)
+
+#print(layer_hidden_list)
+
+w_set = train_set[0]
+w_test_set = test_set[0]
+
+df_feed, df_desire = seperate_data_to_training_target(w_set,8)
+
+line_in = df_feed.iloc[1]
+
+print(line_in)
