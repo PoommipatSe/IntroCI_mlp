@@ -1,6 +1,7 @@
 import sys  
 import pandas as pd
 import numpy as np
+from itertools import repeat
 
 input_filename = sys.argv[1]
 DELIMITER = '\t'
@@ -62,12 +63,16 @@ layer_outline_list = layer_extract_architect(layer_outline)
 def weight_init(layer_outline_list):
     np.random.seed(seed=2)
     w_l = []
+    w_del_def = []
     for i,j in zip(layer_outline_list, layer_outline_list[1:]):
         weight = []
+        weight_zero = []
         for j2 in range(0,int(j)):
             weight.append(np.random.standard_normal(int(i)+1))
+            weight_zero.append(list(repeat(0,int(i)+1)))
         w_l.append(weight)
-    return w_l
+        w_del_def.append(weight_zero)
+    return w_l, w_del_def
 
 def act_fnct_dif(v):
     return linear_diff_fnct(v)
@@ -79,14 +84,15 @@ def linear_fnct(v):
     return v 
 
 def linear_diff_fnct(v):
-    temp = []
-    for i in range(0, len(v)):
-        temp.append(1)
-    return temp
+    try:
+        temp = []
+        for i in range(0, len(v)):
+            temp.append(1)
+        return temp
+    except TypeError:
+        return 1
 
-
-w = weight_init(layer_outline_list)
-
+w, w_delta_old = weight_init(layer_outline_list)
 working_set = train_set[0]
 working_test_set = test_set[0]
 
@@ -117,8 +123,62 @@ def feed_forward(line_in):
 
 y_out = feed_forward(line_in)
 
-e = np.subtract(d,y_out[-1]) # e = d - y
+def back_propagation(y_out, d):
+    e = np.subtract(d,y_out[-1]) # e = d - y
 
-grdnt_local = np.multiply(e,np.multiply(act_fnct_dif(y_out[-1]),y_out[-1]))
+    grdnt_local = np.multiply(e,np.multiply(act_fnct_dif(y_out[-1]),y_out[-1]))
+    grdnt_list.append(grdnt_local)
 
-print(grdnt_local)
+    step_count = 0
+    for i,j in zip(layer_outline_list_rv, layer_outline_list_rv[1:]):
+
+        #compute gradient
+        for i2 in range(0,int(i)):
+            node_count = 0
+            y_c = (y_out[-(step_count+2)])
+            frame_grdnt = []
+            for j2 in range(0, int(j)+1):
+                if node_count == 0:
+                    node_count += 1
+                    continue
+                
+                sum_prod_grdnt_weight_output = sum(np.multiply(grdnt_local, w[-(step_count+1)][i2][j2]))
+                grdnt = (y_c[j2]*act_fnct_dif(y_c[j2])*sum_prod_grdnt_weight_output)
+                frame_grdnt.append(grdnt)
+                node_count += 1
+            grdnt_list.append(frame_grdnt)
+
+        #compute weight
+        for i2 in range(0,int(i)):
+            y_c = (y_out[-(step_count+2)])
+
+            delta_w_c = n * np.multiply(grdnt_local,y_c)
+            delta_w_old_c =  np.multiply(a,w_delta_old[-(step_count+1)][i2])
+            delta_w_com = np.add(delta_w_old_c, delta_w_c)
+
+            w_c = (w[-(step_count+1)][i2])
+            w_new = np.add(w_c, delta_w_com)
+            
+            #update
+            w_delta_old[-(step_count+1)][i2] = delta_w_c #delta_w_old_c
+            w[-(step_count+1)][i2] = w_new #w_c
+
+        step_count += 1
+
+    return e
+
+grdnt_list = []
+
+layer_outline_list_rv = layer_outline_list[::-1]
+
+a = 0.5
+n = 0.5
+
+print(w)
+e = back_propagation(y_out,d)
+print("xxx")
+print(w)
+print(e)
+
+
+
