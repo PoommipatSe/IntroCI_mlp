@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from itertools import repeat
 import math
-
+import pickle
 
 
 input_filename = sys.argv[1]
@@ -11,7 +11,7 @@ DELIMITER = '\t'
 K_F_VALID = 10
 target_num = 8
 a = 0
-n = 0.1
+n = 0.2
 layer_outline = "8-5-1"
 
 df = pd.read_csv(input_filename, delimiter = DELIMITER, header = 0 )
@@ -19,7 +19,7 @@ normalized_df=(df-df.mean())/df.std()
 data_target_mean = df.iloc[:,8].mean()
 data_target_std = df.iloc[:,8].std()
 
-normalized = (df-df.min())/((df.max())-(df.min()))
+normalized = 2*((df-df.min())/((df.max())-(df.min())))-1 #[-1,1]
 df = normalized
 
 def k_fold_cross_valiation(df, K_F_VALID):
@@ -67,42 +67,30 @@ def layer_extract_architect(layer_outline):
 def weight_init(layer_outline_list):
     np.random.seed(seed=2)
     w_l = []
-    w_del_def = []
     for i,j in zip(layer_outline_list, layer_outline_list[1:]):
         weight = []
         weight_zero = []
         for j2 in range(0,int(j)):
             weight.append(np.random.standard_normal(int(i)+1))
-            weight_zero.append(list(repeat(0,int(i)+1)))
         w_l.append(weight)
-        w_del_def.append(weight_zero)
-    return w_l, w_del_def
+    return w_l, w_l
 
 def act_fnct(v):
-    return sigmoid(v)
+    return tanh_f(v)
 
 def act_fnct_dif(v):
-    return sigmoid_dif(v)
+    return tanh_f_dif(v)
 
 def linear_fnct(v):
-    return v 
+    return np.multiply(1,v) 
 
 def linear_dif_fnct(v):
-    try:
-        temp = []
-        for i in range(0, len(v)):
-            temp.append(1)
-        return temp
-    except TypeError:
-        return 1
+    return np.divide(v,v) 
 
 def sigmoid(x):
   return 1 / (1 + np.exp(np.multiply(x,-1)))
 
 def sigmoid_dif(x):
-  try:
-    return x*(1-x)
-  except TypeError:
     return np.multiply(x,(np.subtract(1,x))) 
 
 def tanh_f(x):
@@ -123,6 +111,7 @@ def feed_forward(line_in):
         for j2 in range(0,int(j)):
             temp = sum(np.multiply(y_out[step_count], w[step_count][j2]))
             v.append(temp)
+
         y = act_fnct(v).tolist()
         y.insert(0,1)
         y_out.append(y)
@@ -133,81 +122,123 @@ def feed_forward(line_in):
 
 
 def back_propagation(y_out, d):
+    global start_train_flag
     e = np.subtract(d,y_out[-1]) # e = d - y
-
+    #compute local gradient
     grdnt_local = np.multiply(e,np.multiply(act_fnct_dif(y_out[-1]),y_out[-1]))
     grdnt_list = []
     grdnt_list.append(grdnt_local)
-
+    
     step_count = 0
+    delta_w_old_c_list = []
     for i,j in zip(layer_outline_list_rv, layer_outline_list_rv[1:]):
 
-        #compute gradient
-        for i2 in range(0,int(i)):
-            node_count = 0
-            y_c = (y_out[-(step_count+2)])
-            frame_grdnt = []
-            for j2 in range(0, int(j)+1):
-                if node_count == 0:
-                    node_count += 1
-                    continue
-                
-                sum_prod_grdnt_weight_output = sum(np.multiply(grdnt_local, w[-(step_count+1)][i2][j2]))
-                grdnt = (y_c[j2]*act_fnct_dif(y_c[j2])*sum_prod_grdnt_weight_output)
-                frame_grdnt.append(grdnt)
-                node_count += 1
-            grdnt_list.append(frame_grdnt)
-
-        #compute weight
-        for i2 in range(0,int(i)):
-            y_c = (y_out[-(step_count+2)])
-
-            delta_w_c = n * np.multiply(grdnt_local,y_c)
-            delta_w_old_c =  np.multiply(a,w_delta_old[-(step_count+1)][i2])
-            delta_w_com = np.add(delta_w_old_c, delta_w_c)
-
-            w_c = (w[-(step_count+1)][i2])
-            w_new = np.add(w_c, delta_w_com)
+        #compute hidden layer gradient
+        y_c = (y_out[-(step_count+2)])
+        grdnt_list_step = []
+        for j2 in range(0,int(j)+1):
             
-            #update
-            w_delta_old[-(step_count+1)][i2] = delta_w_c #delta_w_old_c
-            w[-(step_count+1)][i2] = w_new #w_c
+            if j2 == 0:
+                continue
 
+            temp_y_mult_y_dif = np.multiply(y_c,act_fnct_dif(y_c))
+            grdnt = 0
+            sum_prod_grdnt_weight_output = 0     
+            for i2 in range(0,int(i)):
+                grdnt_mult_weight = np.sum(np.multiply(grdnt_list[step_count], w[-(step_count+1)][i2][j2]))
+                
+                sum_prod_grdnt_weight_output += grdnt_mult_weight
+                
+            grdnt = temp_y_mult_y_dif[j2] * sum_prod_grdnt_weight_output
+            grdnt_list_step.append(grdnt)
+
+        grdnt_list.append(grdnt_list_step)
+        
+        #compute weight
+        #for i2 in range(0,int(i)):
+
+        delta_weight_list = []
+        for j2 in range(0,int(j)+1):
+            
+            delta_w_c = n * np.multiply(grdnt_list[step_count],y_c[j2]) #n*grdnt*y
+            
+            #delta_w_old_c =  np.multiply(a,w_delta_old[-(step_count+1)][i2])
+            if start_train_flag :
+                delta_w_com = np.add(0, delta_w_c)
+                start_train_flag = False
+            else:
+                #delta_w_com = np.add(np.multiply(a, delta_w_old_c_list[step_count][j2]), delta_w_c)
+                delta_w_com = np.add(0, delta_w_c)
+            
+            delta_weight_list.append(delta_w_com)
+        
+        #delta_w_old_c_list = delta_weight_list
+        #update
+        print(step_count, "d = ", delta_weight_list)
+        print("a = ", w[-(step_count+1)])
+        for num in range(0,len(delta_weight_list)):
+            for num2 in range(0,len(delta_weight_list[num])):
+                #print(num,num2)
+                w[-(step_count+1)][num2][num] += delta_weight_list[num][num2]
+        print("a = ", w[-(step_count+1)])
+
+        
+#working on weight back prop !!!!
+        
         step_count += 1
-
-    error_this_pass = sum(np.multiply(e,e))/len(e)
+    
+    error_this_pass = sum(np.multiply(e,e))/len(e) 
     return error_this_pass
 
 #initialize
+start_train_flag = True
 train_set, test_set = generate_train_test_from_dataset(df,K_F_VALID)
 layer_outline_list = layer_extract_architect(layer_outline)
 layer_outline_list_rv = layer_outline_list[::-1]
 
 w, w_delta_old = weight_init(layer_outline_list)
 
+""" with open('train.pickle', 'rb') as f:
+    w, w_delta_old = pickle.load(f) """
+
 working_set = train_set[0]
 working_test_set = test_set[0]
 
+
 df_feed, df_desire = seperate_data_to_training_target(working_set,target_num)
 
+def mlp_train(epoch_max,df_feed, df_desire):
+    
+    error_epoch_list_compute_list = []
+    for epoch in range(0,epoch_max):
+        error_epoch_list = []
 
-print(df_desire)
-epoch_max = 20
-error_epoch_list_compute_list = []
-for epoch in range(0,epoch_max):
-    error_epoch_list = []
-    for item in range(0,len(df_feed)):
-        line_in = df_feed.iloc[item].tolist()
-        d = df_desire.iloc[item,].tolist()
-        y_out = feed_forward(line_in)
-        e = back_propagation(y_out,d)
-        error_epoch_list.append(e)
+        for item in range(0,2):
+            line_in = df_feed.iloc[item].tolist()
+            d = df_desire.iloc[item,].tolist()
+            y_out = feed_forward(line_in)
+            e = back_propagation(y_out,d)
+            error_epoch_list.append(e)
 
-    error_epoch_list_compute = sum(error_epoch_list)/len(df_feed)
-    error_epoch_list_compute_list.append(error_epoch_list_compute)
-    print("process : ", epoch ," / ", epoch_max)
-print(error_epoch_list_compute_list)
-print(w)
+        error_epoch_list_compute = (sum(error_epoch_list))/len(df_feed)
+        error_epoch_list_compute_list.append(error_epoch_list_compute)
+        print("process : ", epoch ," / ", epoch_max)
+        
+
+    return error_epoch_list_compute_list
+
+e_return = mlp_train(1, df_feed, df_desire)
+print(e_return)
 
 
+
+""" with open('train.pickle', 'wb') as f:
+    pickle.dump([w,w_delta_old],f) """
+
+""" df_feed_test, df_desire_test = seperate_data_to_training_target(working_test_set,target_num)
+for item in range(0,len(df_feed_test)):
+    line_in = df_feed_test.iloc[item].tolist()
+    d = df_desire_test.iloc[item,].tolist()
+    y_out = feed_forward(line_in)
+    print(y_out[-1], d) """
 
