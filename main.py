@@ -9,17 +9,19 @@ import pickle
 input_filename = sys.argv[1]
 DELIMITER = '\t'
 K_F_VALID = 10
-target_num = 8
+target_num = 2
+header_file_num = None
 a = 0
 n = 0.2
-layer_outline = "8-5-1"
+layer_outline = "2-3-2"
 
-df = pd.read_csv(input_filename, delimiter = DELIMITER, header = 0 )
-normalized_df=(df-df.mean())/df.std()
-data_target_mean = df.iloc[:,8].mean()
-data_target_std = df.iloc[:,8].std()
+df = pd.read_csv(input_filename, delimiter = DELIMITER, header = header_file_num )
+#normalized_df=(df-df.mean())/df.std()
+#data_target_mean = df.iloc[:,target_num].mean()
+#data_target_std = df.iloc[:,target_num].std()
 
-normalized = 2*((df-df.min())/((df.max())-(df.min())))-1 #[-1,1]
+#normalized = 2*((df-df.min())/((df.max())-(df.min())))-1 #[-1,1]
+normalized = ((df-df.min())/((df.max())-(df.min()))) #[0,1]
 df = normalized
 
 def k_fold_cross_valiation(df, K_F_VALID):
@@ -76,10 +78,10 @@ def weight_init(layer_outline_list):
     return w_l, w_l
 
 def act_fnct(v):
-    return tanh_f(v)
+    return sigmoid(v)
 
 def act_fnct_dif(v):
-    return tanh_f_dif(v)
+    return sigmoid_dif(v)
 
 def linear_fnct(v):
     return np.multiply(1,v) 
@@ -97,6 +99,7 @@ def tanh_f(x):
     return np.tanh(x)
 
 def tanh_f_dif(x):
+    #fix me
     return 1 - np.multiply(np.tanh(x),np.tanh(x))
 
 def feed_forward(line_in):
@@ -124,6 +127,7 @@ def feed_forward(line_in):
 def back_propagation(y_out, d):
     global start_train_flag
     e = np.subtract(d,y_out[-1]) # e = d - y
+
     #compute local gradient
     grdnt_local = np.multiply(e,np.multiply(act_fnct_dif(y_out[-1]),y_out[-1]))
     grdnt_list = []
@@ -155,35 +159,27 @@ def back_propagation(y_out, d):
         grdnt_list.append(grdnt_list_step)
         
         #compute weight
-        #for i2 in range(0,int(i)):
-
         delta_weight_list = []
         for j2 in range(0,int(j)+1):
             
             delta_w_c = n * np.multiply(grdnt_list[step_count],y_c[j2]) #n*grdnt*y
             
-            #delta_w_old_c =  np.multiply(a,w_delta_old[-(step_count+1)][i2])
             if start_train_flag :
                 delta_w_com = np.add(0, delta_w_c)
                 start_train_flag = False
             else:
-                #delta_w_com = np.add(np.multiply(a, delta_w_old_c_list[step_count][j2]), delta_w_c)
                 delta_w_com = np.add(0, delta_w_c)
             
             delta_weight_list.append(delta_w_com)
         
-        #delta_w_old_c_list = delta_weight_list
         #update
-        print(step_count, "d = ", delta_weight_list)
-        print("a = ", w[-(step_count+1)])
+        
         for num in range(0,len(delta_weight_list)):
             for num2 in range(0,len(delta_weight_list[num])):
                 #print(num,num2)
                 w[-(step_count+1)][num2][num] += delta_weight_list[num][num2]
-        print("a = ", w[-(step_count+1)])
-
-        
-#working on weight back prop !!!!
+#WORKK
+    
         
         step_count += 1
     
@@ -201,6 +197,8 @@ w, w_delta_old = weight_init(layer_outline_list)
 """ with open('train.pickle', 'rb') as f:
     w, w_delta_old = pickle.load(f) """
 
+
+#fix : loop the folds
 working_set = train_set[0]
 working_test_set = test_set[0]
 
@@ -213,7 +211,7 @@ def mlp_train(epoch_max,df_feed, df_desire):
     for epoch in range(0,epoch_max):
         error_epoch_list = []
 
-        for item in range(0,2):
+        for item in range(0,len(df_feed)):
             line_in = df_feed.iloc[item].tolist()
             d = df_desire.iloc[item,].tolist()
             y_out = feed_forward(line_in)
@@ -227,18 +225,18 @@ def mlp_train(epoch_max,df_feed, df_desire):
 
     return error_epoch_list_compute_list
 
-e_return = mlp_train(1, df_feed, df_desire)
+e_return = mlp_train(50, df_feed, df_desire)
 print(e_return)
 
 
 
-""" with open('train.pickle', 'wb') as f:
-    pickle.dump([w,w_delta_old],f) """
+with open('train.pickle', 'wb') as f:
+    pickle.dump([w,w_delta_old],f)
 
-""" df_feed_test, df_desire_test = seperate_data_to_training_target(working_test_set,target_num)
+df_feed_test, df_desire_test = seperate_data_to_training_target(working_test_set,target_num)
 for item in range(0,len(df_feed_test)):
     line_in = df_feed_test.iloc[item].tolist()
     d = df_desire_test.iloc[item,].tolist()
     y_out = feed_forward(line_in)
-    print(y_out[-1], d) """
+    print(y_out[-1], d)
 
