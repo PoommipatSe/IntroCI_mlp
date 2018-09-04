@@ -11,17 +11,23 @@ DELIMITER = '\t'
 K_F_VALID = 10
 target_num = 2
 header_file_num = None
-a = 0
+a = 0.1
 n = 0.2
-layer_outline = "2-3-2"
+layer_outline = "2-3-3-2"
 
 df = pd.read_csv(input_filename, delimiter = DELIMITER, header = header_file_num )
+
 #normalized_df=(df-df.mean())/df.std()
 #data_target_mean = df.iloc[:,target_num].mean()
 #data_target_std = df.iloc[:,target_num].std()
 
 #normalized = 2*((df-df.min())/((df.max())-(df.min())))-1 #[-1,1]
-normalized = ((df-df.min())/((df.max())-(df.min()))) #[0,1]
+
+save_df_min = df.min()
+save_df_max = df.max()
+save_df_range = save_df_max - save_df_min
+normalized = (df-save_df_min)/(save_df_range) #[0,1]
+
 df = normalized
 
 def k_fold_cross_valiation(df, K_F_VALID):
@@ -52,7 +58,6 @@ def generate_train_test_from_dataset(df, K_F_VALID):
     train_set, test_set = k_fold_combine_to_train_test_set(fold_dataset_list, K_F_VALID)
     return train_set, test_set
 
-#print(test_set[0:9])
 
 def seperate_data_to_training_target(df_set, target_num):
     #column start at index 0
@@ -126,6 +131,7 @@ def feed_forward(line_in):
 
 def back_propagation(y_out, d):
     global start_train_flag
+    global w_old
     e = np.subtract(d,y_out[-1]) # e = d - y
 
     #compute local gradient
@@ -177,12 +183,11 @@ def back_propagation(y_out, d):
         for num in range(0,len(delta_weight_list)):
             for num2 in range(0,len(delta_weight_list[num])):
                 #print(num,num2)
-                w[-(step_count+1)][num2][num] += delta_weight_list[num][num2]
-#WORKK
+                w[-(step_count+1)][num2][num] += a*(w[-(step_count+1)][num2][num] - w_old[-(step_count+1)][num2][num] ) + delta_weight_list[num][num2]
     
-        
         step_count += 1
     
+    w_old = w
     error_this_pass = sum(np.multiply(e,e))/len(e) 
     return error_this_pass
 
@@ -193,9 +198,9 @@ layer_outline_list = layer_extract_architect(layer_outline)
 layer_outline_list_rv = layer_outline_list[::-1]
 
 w, w_delta_old = weight_init(layer_outline_list)
-
-""" with open('train.pickle', 'rb') as f:
-    w, w_delta_old = pickle.load(f) """
+w_old = w
+with open('train.pickle', 'rb') as f:
+    w, w_delta_old = pickle.load(f)
 
 
 #fix : loop the folds
@@ -225,18 +230,35 @@ def mlp_train(epoch_max,df_feed, df_desire):
 
     return error_epoch_list_compute_list
 
-e_return = mlp_train(50, df_feed, df_desire)
+e_return = mlp_train(5, df_feed, df_desire)
 print(e_return)
-
-
 
 with open('train.pickle', 'wb') as f:
     pickle.dump([w,w_delta_old],f)
 
 df_feed_test, df_desire_test = seperate_data_to_training_target(working_test_set,target_num)
-for item in range(0,len(df_feed_test)):
-    line_in = df_feed_test.iloc[item].tolist()
-    d = df_desire_test.iloc[item,].tolist()
-    y_out = feed_forward(line_in)
-    print(y_out[-1], d)
+
+def predictor_cross_funct(y):
+    #for cross.pat dataset
+    if y[0] > y[1]:
+        return [1.0, 0.0]
+    else:
+        return [0.0, 1.0]
+
+def find_acc_cross_pat(df_feed_test):
+    correct = 0
+    for item in range(0,len(df_feed_test)):
+        
+        line_in = df_feed_test.iloc[item].tolist()
+        d = df_desire_test.iloc[item,].tolist()
+        y_out = feed_forward(line_in)
+        predict_cross = predictor_cross_funct(y_out[-1])
+        if predict_cross == d:
+            correct += 1
+            
+    return correct/len(df_feed_test)
+    
+
+accuracy = find_acc_cross_pat(df_feed_test)
+print(accuracy)
 
