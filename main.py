@@ -7,13 +7,14 @@ import pickle
 
 
 input_filename = sys.argv[1]
+
 DELIMITER = '\t'
 K_F_VALID = 10
-target_num = 2
-header_file_num = None
+target_num = 8
+header_file_num = 0
 a = 0.1
 n = 0.2
-layer_outline = "2-3-3-2"
+layer_outline = "8-5-1"
 
 df = pd.read_csv(input_filename, delimiter = DELIMITER, header = header_file_num )
 
@@ -76,7 +77,6 @@ def weight_init(layer_outline_list):
     w_l = []
     for i,j in zip(layer_outline_list, layer_outline_list[1:]):
         weight = []
-        weight_zero = []
         for j2 in range(0,int(j)):
             weight.append(np.random.standard_normal(int(i)+1))
         w_l.append(weight)
@@ -199,8 +199,9 @@ layer_outline_list_rv = layer_outline_list[::-1]
 
 w, w_delta_old = weight_init(layer_outline_list)
 w_old = w
-with open('train.pickle', 'rb') as f:
-    w, w_delta_old = pickle.load(f)
+
+""" with open('train.pickle', 'rb') as f:
+    w, w_delta_old = pickle.load(f) """
 
 
 #fix : loop the folds
@@ -230,11 +231,11 @@ def mlp_train(epoch_max,df_feed, df_desire):
 
     return error_epoch_list_compute_list
 
-e_return = mlp_train(5, df_feed, df_desire)
+e_return = mlp_train(500, df_feed, df_desire)
 print(e_return)
 
-with open('train.pickle', 'wb') as f:
-    pickle.dump([w,w_delta_old],f)
+""" with open('train.pickle', 'wb') as f:
+    pickle.dump([w,w_delta_old],f) """
 
 df_feed_test, df_desire_test = seperate_data_to_training_target(working_test_set,target_num)
 
@@ -259,6 +260,21 @@ def find_acc_cross_pat(df_feed_test):
     return correct/len(df_feed_test)
     
 
-accuracy = find_acc_cross_pat(df_feed_test)
-print(accuracy)
+def denorm_range(y):
+    return (y*save_df_range[target_num]) + save_df_min[target_num] #from [0,1] to original
+
+def find_error_flood(df_feed_test):
+    error_eval = 0
+    for item in range(0,len(df_feed_test)):
+            
+        line_in = df_feed_test.iloc[item].tolist()
+        d = df_desire_test.iloc[item,].tolist()
+        y_out = feed_forward(line_in)
+        error_eval += abs(denorm_range(y_out[-1][0]) - denorm_range(d[0]))
+    return error_eval/len(df_feed_test)
+
+error_eval = find_error_flood(df_feed_test)
+print(error_eval)
+#accuracy = find_acc_cross_pat(df_feed_test)
+#print(accuracy)
 
