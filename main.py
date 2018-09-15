@@ -10,19 +10,14 @@ input_filename = sys.argv[1]
 
 DELIMITER = '\t'
 K_F_VALID = 10
-target_num = 8
-header_file_num = 0
-a = 0.1
-n = 0.2
-layer_outline = "8-5-1"
+target_num = 2
+header_file_num = None
+n = 0.9
+a = 0.5
+layer_outline = "2-2-2"
+EPOCH_MAX = 100
 
 df = pd.read_csv(input_filename, delimiter = DELIMITER, header = header_file_num )
-
-#normalized_df=(df-df.mean())/df.std()
-#data_target_mean = df.iloc[:,target_num].mean()
-#data_target_std = df.iloc[:,target_num].std()
-
-#normalized = 2*((df-df.min())/((df.max())-(df.min())))-1 #[-1,1]
 
 save_df_min = df.min()
 save_df_max = df.max()
@@ -75,12 +70,16 @@ def layer_extract_architect(layer_outline):
 def weight_init(layer_outline_list):
     np.random.seed(seed=2)
     w_l = []
+    w_0 = []
     for i,j in zip(layer_outline_list, layer_outline_list[1:]):
         weight = []
+        weight_0 = []
         for j2 in range(0,int(j)):
             weight.append(np.random.standard_normal(int(i)+1))
+            weight_0.append([0.0]*(int(i)+1))
         w_l.append(weight)
-    return w_l, w_l
+        w_0.append(weight_0)
+    return w_l, w_0
 
 def act_fnct(v):
     return sigmoid(v)
@@ -131,6 +130,7 @@ def feed_forward(line_in):
 
 def back_propagation(y_out, d):
     global start_train_flag
+    global w
     global w_old
     e = np.subtract(d,y_out[-1]) # e = d - y
 
@@ -140,7 +140,6 @@ def back_propagation(y_out, d):
     grdnt_list.append(grdnt_local)
     
     step_count = 0
-    delta_w_old_c_list = []
     for i,j in zip(layer_outline_list_rv, layer_outline_list_rv[1:]):
 
         #compute hidden layer gradient
@@ -170,46 +169,29 @@ def back_propagation(y_out, d):
             
             delta_w_c = n * np.multiply(grdnt_list[step_count],y_c[j2]) #n*grdnt*y
             
-            if start_train_flag :
+            """ if start_train_flag :
                 delta_w_com = np.add(0, delta_w_c)
                 start_train_flag = False
             else:
-                delta_w_com = np.add(0, delta_w_c)
+                delta_w_com = np.add(0, delta_w_c) """
             
-            delta_weight_list.append(delta_w_com)
+            delta_weight_list.append(delta_w_c)
         
         #update
         
+        
         for num in range(0,len(delta_weight_list)):
             for num2 in range(0,len(delta_weight_list[num])):
-                #print(num,num2)
-                w[-(step_count+1)][num2][num] += a*(w[-(step_count+1)][num2][num] - w_old[-(step_count+1)][num2][num] ) + delta_weight_list[num][num2]
-    
+                
+                delta_w_calculated = float(((a*(w_old[-(step_count+1)][num2][num] )) + delta_weight_list[num][num2]))
+                w[-(step_count+1)][num2][num] += delta_w_calculated
+                w_old[-(step_count+1)][num2][num] = delta_w_calculated
+
         step_count += 1
-    
-    w_old = w
+
     error_this_pass = sum(np.multiply(e,e))/len(e) 
     return error_this_pass
 
-#initialize
-start_train_flag = True
-train_set, test_set = generate_train_test_from_dataset(df,K_F_VALID)
-layer_outline_list = layer_extract_architect(layer_outline)
-layer_outline_list_rv = layer_outline_list[::-1]
-
-w, w_delta_old = weight_init(layer_outline_list)
-w_old = w
-
-""" with open('train.pickle', 'rb') as f:
-    w, w_delta_old = pickle.load(f) """
-
-
-#fix : loop the folds
-working_set = train_set[0]
-working_test_set = test_set[0]
-
-
-df_feed, df_desire = seperate_data_to_training_target(working_set,target_num)
 
 def mlp_train(epoch_max,df_feed, df_desire):
     
@@ -226,18 +208,12 @@ def mlp_train(epoch_max,df_feed, df_desire):
 
         error_epoch_list_compute = (sum(error_epoch_list))/len(df_feed)
         error_epoch_list_compute_list.append(error_epoch_list_compute)
-        print("process : ", epoch ," / ", epoch_max)
-        
+        #print("process : ", epoch ," / ", epoch_max)
+        sys.stdout.write('\r')
+        sys.stdout.write("process : %d/%d" % (epoch ,epoch_max))
+        sys.stdout.flush()
 
     return error_epoch_list_compute_list
-
-e_return = mlp_train(500, df_feed, df_desire)
-print(e_return)
-
-""" with open('train.pickle', 'wb') as f:
-    pickle.dump([w,w_delta_old],f) """
-
-df_feed_test, df_desire_test = seperate_data_to_training_target(working_test_set,target_num)
 
 def predictor_cross_funct(y):
     #for cross.pat dataset
@@ -273,8 +249,62 @@ def find_error_flood(df_feed_test):
         error_eval += abs(denorm_range(y_out[-1][0]) - denorm_range(d[0]))
     return error_eval/len(df_feed_test)
 
-error_eval = find_error_flood(df_feed_test)
-print(error_eval)
-#accuracy = find_acc_cross_pat(df_feed_test)
-#print(accuracy)
+
+#initialize
+start_train_flag = True
+train_set, test_set = generate_train_test_from_dataset(df,K_F_VALID)
+layer_outline_list = layer_extract_architect(layer_outline)
+layer_outline_list_rv = layer_outline_list[::-1]
+best_eval_error = 99999
+best_accuracy = 0
+use_default = True
+
+for fold_num in range(0,K_F_VALID):
+    #fold_num = 0
+    w, w_old = weight_init(layer_outline_list)
+
+    """ with open('train.pickle', 'rb') as f:
+        w, w_delta_old = pickle.load(f) """
+
+
+    #fix : loop the folds
+    working_set = train_set[fold_num]
+    working_test_set = test_set[fold_num]
+
+
+    df_feed, df_desire = seperate_data_to_training_target(working_set,target_num)
+
+    e_return = mlp_train(EPOCH_MAX, df_feed, df_desire)
+    print("\nfold = ", fold_num)
+    print("model error = ", e_return[-1])
+
+    """ with open('train.pickle', 'wb') as f:
+        pickle.dump([w,w_delta_old],f) """
+
+    df_feed_test, df_desire_test = seperate_data_to_training_target(working_test_set,target_num)
+
+    """ error_eval = find_error_flood(df_feed_test)
+    print("denormalized error = ", error_eval)
+
+
+    if error_eval < best_eval_error:
+        #update best model
+        best_eval_error = error_eval
+        best_model_error = e_return[-1]
+        best_weight = w """
+
+    accuracy = find_acc_cross_pat(df_feed_test)
+    print("accuracy = ", accuracy)
+    if best_accuracy < accuracy:
+        #update best model
+        best_accuracy = accuracy
+        best_model_error = e_return[-1]
+        best_weight = w
+
+print("==== RESULT ====")
+print(best_weight)
+print("best accuracy = ", best_accuracy)
+
+
+
 

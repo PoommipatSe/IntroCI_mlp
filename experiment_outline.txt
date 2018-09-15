@@ -1,0 +1,26 @@
+-hidden layer (for flood dataset)
+1 layer 8-5-1
+2 layer 8-5-3-1
+
+-learning rate and momentum rate
+l = 0.4 a = 0.0 (low l with lower a)
+l = 0.4 a = 0.3 (low l with higher a)
+l = 0.9 a = 0.1 (higher l with lower a)
+l = 0.9 a = 0.5 (higher l with higher a)
+
+-change folds
+10 folds -> get the least error for each iteration
+
+=========================================
+-hidden layer (for cross dataset)
+1 layer 2-2-2
+2 layer 2-2-2-2
+
+-learning rate and momentum rate
+l = 0.4 a = 0.1 (low l with lower a)
+l = 0.4 a = 0.3 (low l with higher a)
+l = 0.9 a = 0.1 (higher l with lower a)
+l = 0.9 a = 0.5 (higher l with higher a)
+
+-change folds
+10 folds -> get the best accuracy for each iteration
